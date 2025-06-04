@@ -51,9 +51,10 @@ class metric_func(Callback):
         #flatten everything (to make it also work for annotation tasks)
         y_pred_flat = last_output.view((-1,last_output.size()[-1]))
         
-        if(self.flatten_target):
+        if self.flatten_target:
             y_true_flat = last_target.view(-1)
-        y_true_flat = last_target
+        else:
+            y_true_flat = last_target
 
         #optionally take argmax of predictions
         if(self.argmax_pred is True):
