@@ -64,11 +64,11 @@ def dataset_add_median_col(df, col="data", axis=(0), data_folder=None):
     df[col+"_median"]=df[col].apply(lambda x: np.median(np.load(x if data_folder is None else data_folder/x),axis=axis))
 
 def dataset_add_std_col(df, col="data", axis=(0), data_folder=None):
-    '''adds a column with mean'''
+    '''adds a column containing the standard deviation'''
     df[col+"_std"]=df[col].apply(lambda x: np.std(np.load(x if data_folder is None else data_folder/x),axis=axis))
 
 def dataset_add_iqr_col(df, col="data", axis=(0), data_folder=None):
-    '''adds a column with mean'''
+    '''adds a column containing the interquartile range'''
     df[col+"_iqr"]=df[col].apply(lambda x: iqr(np.load(x if data_folder is None else data_folder/x),axis=axis))
 
 def dataset_get_stats(df, col="data",median=False):
