@@ -13,7 +13,7 @@ def stratisfy_df(df, new_col_name, n_folds=10, nr_clean_folds=0):
         quals.append(q)
     df['quality'] = quals
 
-    # create stratisfied folds according to patients
+    # create stratified folds according to patients
     pat_ids = np.array(sorted(list(set(df.patient_id.values))))
     plabels = []
     pquals = []
@@ -154,7 +154,7 @@ def stratify(data, classes, ratios, qualities, ecgs_per_patient, nr_clean_folds=
             for x in per_label_data.keys():
                 per_label_data[x] = [y for y in per_label_data[x] if y!=current_id]
               
-    # Create the stratified dataset as a list of subsets, each containing the orginal labels
+    # Create the stratified dataset as a list of subsets, each containing the original labels
     stratified_data_ids = [sorted(strat) for strat in stratified_data_ids]
     stratified_data = [
         [data[i] for i in strat] for strat in stratified_data_ids

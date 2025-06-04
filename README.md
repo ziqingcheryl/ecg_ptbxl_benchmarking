@@ -17,7 +17,7 @@ Install the dependencies (wfdb, pytorch, torchvision, cudatoolkit, fastai, fastp
     conda activate ecg_env
 
 ### Get data
-Download and prepare the datasets (PTB-XL and ICBEB) via the follwing bash-script:
+Download and prepare the datasets (PTB-XL and ICBEB) via the following bash-script:
 
     ./get_datasets.sh
 
@@ -64,8 +64,8 @@ e.evaluate()
 ```
 
 ### Notes on e.evaluate()
-Altough we recommend to use our framework, custom evaluation of custom models is still possible via calling `code.utils.utils.evaluate_experiment(y_true, y_pred, thresholds)` 
-manually with classwise thresholds. 
+Although we recommend using our framework, custom evaluation of custom models is still possible via calling `code.utils.utils.evaluate_experiment(y_true, y_pred, thresholds)`
+manually with classwise thresholds.
 
 For `e.evaluate()`: If the name of the experiment is `exp_ICBEB` classifier thresholds are needed. 
 In any other case `evaluate_experiment(y_true, y_pred)` will return a dictionary with `macro_auc` and `Fmax` (both metrics are **without any explicitly needed thresholds**). 

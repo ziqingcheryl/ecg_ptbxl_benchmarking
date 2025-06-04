@@ -40,7 +40,7 @@ def main():
         e.perform()
         e.evaluate()
 
-    # generate greate summary table
+    # generate great summary table
     utils.generate_ptbxl_summary_table()
 
     ##########################################
@@ -52,7 +52,7 @@ def main():
     e.perform()
     e.evaluate()
 
-    # generate greate summary table
+    # generate great summary table
     utils.ICBEBE_table()
 
 if __name__ == "__main__":

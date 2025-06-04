@@ -71,7 +71,7 @@ class SqueezeExcite1d(nn.Module):
         return s*x #bs,ch,seq * bs, ch,1 = bs,ch,seq
 
 def weight_init(m):
-    '''call weight initialization for model n via n.appy(weight_init)'''
+    '''call weight initialization for model n via n.apply(weight_init)'''
     if isinstance(m, nn.Conv1d) or isinstance(m, nn.Linear):
         nn.init.kaiming_normal_(m.weight)
         if m.bias is not None:

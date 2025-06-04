@@ -7,7 +7,7 @@ from pathlib import Path
 from scipy.stats import iqr
 import os
 
-#Note: due to issues with the numpy rng for multiprocessing (https://github.com/pytorch/pytorch/issues/5059) that could be fixed by a custom worker_init_fn we use random throught for convenience
+# Note: due to issues with the numpy RNG for multiprocessing (https://github.com/pytorch/pytorch/issues/5059) that could be fixed by a custom worker_init_fn, we use randomness throughout for convenience
 import random
 
 from skimage import transform
