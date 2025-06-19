@@ -284,20 +284,37 @@ class fastai_model(ClassificationModel):
             losses_plot(learn, self.outputfolder,"losses"+str(len(layer_groups)))
 
         learn.save(self.name) #even for early stopping the best model will have been loaded again
-    
+
     def predict(self, X):
         X = [l.astype(np.float32) for l in X]
         y_dummy = [np.ones(self.num_classes,dtype=np.float32) for _ in range(len(X))]
         
         learn = self._get_learner(X,y_dummy,X,y_dummy)
-        learn.load(self.name)
+
+        if(self.pretrainedfolder is not None):
+            learn.path = self.pretrainedfolder
+            learn.load(self.pretrainedfolder.stem)
+            learn.path = self.outputfolder
         
+        # print(learn.model)
         preds,targs=learn.get_preds()
         preds=to_np(preds)
         
         idmap=learn.data.valid_ds.get_id_mapping()
 
         return aggregate_predictions(preds,idmap=idmap,aggregate_fn = np.mean if self.aggregate_fn=="mean" else np.amax)  
+    def get_model(self, X):
+        X = [l.astype(np.float32) for l in X]
+        y_dummy = [np.ones(self.num_classes,dtype=np.float32) for _ in range(len(X))]
+        
+        learn = self._get_learner(X,y_dummy,X,y_dummy)
+
+        if(self.pretrainedfolder is not None):
+            learn.path = self.pretrainedfolder
+            learn.load(self.pretrainedfolder.stem)
+            learn.path = self.outputfolder
+        
+        return learn.model.eval()
         
     def _get_learner(self, X_train,y_train,X_val,y_val,num_classes=None):
         df_train = pd.DataFrame({"data":range(len(X_train)),"label":y_train})

@@ -13,3 +13,6 @@ __pycache__
 **/*.fdb_latexmk
 
 .ipynb_checkpoints
+
+data/
+output/
