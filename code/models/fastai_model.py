@@ -303,6 +303,7 @@ class fastai_model(ClassificationModel):
         idmap=learn.data.valid_ds.get_id_mapping()
 
         return aggregate_predictions(preds,idmap=idmap,aggregate_fn = np.mean if self.aggregate_fn=="mean" else np.amax)  
+    
     def get_model(self, X):
         X = [l.astype(np.float32) for l in X]
         y_dummy = [np.ones(self.num_classes,dtype=np.float32) for _ in range(len(X))]

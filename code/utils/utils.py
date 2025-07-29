@@ -15,6 +15,7 @@ from sklearn.metrics import fbeta_score, roc_auc_score, roc_curve, roc_curve, au
 from sklearn.preprocessing import StandardScaler, MultiLabelBinarizer
 from matplotlib.axes._axes import _log as matplotlib_axes_logger
 import warnings
+import json
 
 # EVALUATION STUFF
 def generate_results(idxs, y_true, y_pred, thresholds):
@@ -241,6 +242,19 @@ def compute_label_aggregations(df, folder, ctype):
         df['rhythm_len'] = df.rhythm.apply(lambda x: len(x))
     elif ctype == 'all':
         df['all_scp'] = df.scp_codes.apply(lambda x: list(set(x.keys())))
+        # Flatten all keys from all rows
+        all_scp_codes = set(code for scp_dict in df['scp_codes'] for code in scp_dict.keys())
+
+        # Sort them to get a consistent index order
+        sorted_scp_codes = sorted(list(all_scp_codes))
+
+        # Mapping from index to SCP code
+        index_to_scp = {i: code for i, code in enumerate(sorted_scp_codes)}
+
+        # Reverse mapping
+        scp_to_index = {code: i for i, code in enumerate(sorted_scp_codes)}
+        with open("scp_to_index.json", "w") as f:
+            json.dump(scp_to_index, f)
 
     return df
 
