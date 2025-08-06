@@ -318,6 +318,13 @@ def select_data(XX,YY, ctype, min_samples, outputfolder):
         Y = YY[YY.all_scp_len > 0]
         mlb.fit(Y.all_scp.values)
         y = mlb.transform(Y.all_scp.values)
+        # # 保存标签映射关系
+        # label_mapping = {i: label for i, label in enumerate(mlb.classes_)}
+
+        # # 可以将映射关系保存到文件，以便后续使用
+        # import json
+        # with open('label_mapping.json', 'w') as f:
+        #     json.dump(label_mapping, f)
     else:
         pass
 

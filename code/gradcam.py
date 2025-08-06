@@ -163,6 +163,9 @@ def plot_only_signal(one_data, save_path=None):
     one_data: (12, T) ECG signal
     save_path: if provided, saves figure instead of showing it
     """
+    # check if the filefolder of save_path exists
+    if save_path:
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
     lead_names = ['I', 'II', 'III', 'aVR', 'aVL', 'aVF', 
                   'V1', 'V2', 'V3', 'V4', 'V5', 'V6']
 
@@ -193,6 +196,29 @@ def find_last_conv1d(model):
             return layer
     raise ValueError("No Conv1d layer found.")
 
+
+
+def visualize_prediction_result(y_pred, y_true, label_mapping):
+    # 确保输入是numpy数组
+    y_pred = np.array(y_pred)
+    y_true = np.array(y_true)
+    
+    # 处理单样本场景（将一维数组视为单个样本的71个类别）
+    # 获取前2个概率最高的类别索引（降序）
+    top2_indices = np.argsort(y_pred)[-2:][::-1]  # 对71个类别排序，取最后2个并反转
+    
+    # 转换预测的前2个索引为标签
+    pred_labels = [label_mapping[str(i)] for i in top2_indices if str(i) in label_mapping]
+    
+    # 转换真实标签（提取y_true中值为1的索引）
+    true_indices = np.where(y_true == 1)[0]
+    true_labels = [label_mapping[str(i)] for i in true_indices if str(i) in label_mapping]
+    
+    # 打印结果
+    print("样本预测结果与真实标签对比：")
+    print(f"  真实标签: {true_labels}")
+    print(f"  预测前2标签（按概率排序）: {pred_labels}")
+    
 sampling_frequency=100
 datafolder='/home/ec2-user/ecg_ptbxl_benchmarking/data/ptbxl/'
 task='all'
@@ -202,15 +228,15 @@ if __name__ == "__main__":
     # Create output directories
     categories = {
         "mi_correct": "MI_related_correct_predictions",
-        "mi_incorrect": "MI_related_incorrect_predictions",
-        "non_mi_correct": "Non_MI_correct_predictions",
-        "non_mi_incorrect": "Non_MI_incorrect_predictions"
+        "mi_incorrect_as_norm": "MI_related_incorrect_predictions",
+        "norm_correct": "NORM_correct_predictions",
+        "norm_incorrect_as_MI": "NORM_incorrect_predictions"
     }
 
     # Create main output directory and subdirectories
-    main_output_dir = os.path.join(outputfolder, "gradcam_categories")
+    main_output_dir = os.path.join(outputfolder, "gradcam_categories3")
     os.makedirs(main_output_dir, exist_ok=True)
-    for dir_name in categories.values():
+    for dir_name in categories.keys():
         os.makedirs(os.path.join(main_output_dir, dir_name), exist_ok=True)
 
     # Load PTB-XL data
@@ -231,8 +257,10 @@ if __name__ == "__main__":
         index_to_scp = json.load(f)
     scp_to_index = {v: k for k, v in index_to_scp.items()}  # Reverse mapping
     
-    MI_related_scps = ["IMI", "ASMI", "ILMI", "ALMI", "LMI", "PMI", "IPMI", "IPLMI"]
-    MI_related_indices = [scp_to_index[scp] for scp in MI_related_scps if scp in scp_to_index]
+    MI_related_scps = ["AMI","ALMI","ILMI","LMI","IMI","ASMI","IPMI","IPLMI","PMI"]
+    MI_related_indices = [int(scp_to_index[scp]) for scp in MI_related_scps if scp in scp_to_index]
+    NORM_scp = ["NORM"]
+    NORM_related_indices = [int(scp_to_index[scp]) for scp in NORM_scp if scp in scp_to_index]
 
     # Model configuration
     num_classes = 71
@@ -285,6 +313,11 @@ if __name__ == "__main__":
     counters = {cat: 0 for cat in categories.keys()}
     target_count = 50
     # Continue until we have enough samples in all categories
+
+    TP = 0
+    TN = 0
+    FP = 0
+    FN = 0
     while not all(count >= target_count for count in counters.values()) and processed < num_samples:
         # Calculate batch boundaries
         batch_start = processed
@@ -304,20 +337,24 @@ if __name__ == "__main__":
             x = batch_X[i]
             y_true = batch_y_true[i]
             y_pred = batch_y_pred[i]
-            print(y_pred)
-            print(np.sum(y_pred))
 
             # Get prediction confidence
             y_pred_softmax = softmax(y_pred)
             
             # Calculate total confidence for MI-related predictions
             # print(f"MI-related indices: {MI_related_indices}")
-            mi_confidence = sum(y_pred_softmax[int(idx)] for idx in MI_related_indices)
+            mi_confidence = max(y_pred_softmax[int(idx)] for idx in MI_related_indices)
 
             # Convert to percentage
-            mi_confidence_percent = mi_confidence * 100
+            mi_confidence_percent = mi_confidence
 
-            print(f"MI-related confidence (after softmax): {mi_confidence_percent:.2f}%")
+            norm_confidence = y_pred_softmax[int(NORM_related_indices[0])]
+
+            MI_confidence_versus_norm = mi_confidence_percent/(mi_confidence_percent+norm_confidence)*100
+
+            visualize_prediction_result(y_pred,y_true, index_to_scp)
+
+            print(f"MI-related confidence (after softmax): {MI_confidence_versus_norm:.2f}%")
             
             # Determine true label SCPs
             true_scp_indices = np.where(y_true == 1)[0]
@@ -325,17 +362,56 @@ if __name__ == "__main__":
             
             # Classify as MI-related or not
             is_mi = any(scp in MI_related_scps for scp in true_scps)
+
+            is_norm = any(scp in NORM_scp for scp in true_scps)
             
             # Determine prediction correctness (using argmax for simplicity)
             # Adjust this if you need a different threshold for positive prediction
             pred_class = np.argmax(y_pred)
-            is_correct = pred_class in true_scp_indices
+            is_correct = pred_class in true_scp_indices 
+
+            # 获取模型预测的前2个高概率标签索引
+            top_pred_indices = np.argsort(y_pred)[-2:][::-1]
+            # 判断是否有任何MI相关标签被预测到
+            has_mi_pred = any(idx in MI_related_indices for idx in top_pred_indices)
+            # 判断是否有任何NORM相关标签被预测到
+            has_norm_pred = any(idx in NORM_related_indices for idx in top_pred_indices)
+
+            # print("NORM相关索引集合：", NORM_related_indices)
+            # print("最高概率预测的索引（pred_class）：", top_pred_indices)
+            # print("是否有MI相关标签被预测到：", has_mi_pred)
+            # print("是否有NORM相关标签被预测到：", has_norm_pred)
             
-            # Determine category
+
             if is_mi:
-                category = "mi_correct" if is_correct else "mi_incorrect"
+                # 真实是MI，且预测中包含MI相关标签
+                category = "mi_correct" if has_mi_pred else \
+                      "mi_incorrect_as_norm" if has_norm_pred else \
+                        "mi_incorrect_others"
+            elif is_norm:
+                # 真实是正常，且预测中包含正常标签
+                category = "norm_correct" if has_norm_pred else \
+                        "norm_incorrect_as_MI" if has_mi_pred else \
+                        "norm_incorrect_others"
             else:
-                category = "non_mi_correct" if is_correct else "non_mi_incorrect"
+                category = "others_correct" if is_correct else "others_incorrect"
+            
+            print(f"Category determined as '{category}'")
+
+            if category == "mi_correct":
+                TP += 1
+            
+            if category == "norm_correct":
+                TN += 1
+            
+            if category == "mi_incorrect_as_norm":
+                FP += 1
+
+            if category == "norm_incorrect_as_MI":
+                FN += 1
+
+            if category in ["others_correct", "others_incorrect","norm_incorrect_others","mi_incorrect_others"]:
+                continue # Skip categories of other diseases
             
             # Skip if we already have enough in this category
             if counters[category] >= target_count:
@@ -351,15 +427,15 @@ if __name__ == "__main__":
                 cam = gradcampp.generate(x_tensor)[0].cpu().numpy()  # (1000,)
                 
                 # Create filename with sample info
-                filename_base = f"sample_{sample_idx}_mi_{is_mi}_correct_{is_correct}"
+                filename_base = f"sample_{sample_idx}_{category}"
                 
                 # Save plots
-                output_dir = os.path.join(main_output_dir, categories[category])
+                output_dir = os.path.join(main_output_dir, category)
                 
                 # Save ECG only
                 plot_only_signal(
                     s_processed, 
-                    save_path=os.path.join(output_dir, f"{filename_base}_{mi_confidence_percent}_signal.png")
+                    save_path=os.path.join(output_dir, f"{filename_base}_{MI_confidence_versus_norm}_signal.png")
                 )
                 
                 # Save ECG + CAM overlay
@@ -367,11 +443,15 @@ if __name__ == "__main__":
                     sample=s_processed, 
                     cam=cam, 
                     fs=sampling_frequency, 
-                    save_path=os.path.join(output_dir, f"{filename_base}_{mi_confidence_percent}_gradcam.png")
+                    save_path=os.path.join(output_dir, f"{filename_base}_{MI_confidence_versus_norm}_gradcam.png")
                 )
                 
                 # Increment counter
                 counters[category] += 1
+                # Print processing confidence for MI and NORM
+                print(f"Processed sample {sample_idx}: {category} - MI confidence: {mi_confidence_percent:.2f}%")
+                print(f"Processed sample {sample_idx}: {category} - NORM confidence: {norm_confidence:.2f}%")
+                print("true SCPs:", true_scps)
                 print(f"Saved {category} #{counters[category]}/{target_count} (Sample {sample_idx})")
                 
             except Exception as e:
@@ -386,3 +466,8 @@ if __name__ == "__main__":
     print("Processing complete. Final counts:")
     for cat, count in counters.items():
         print(f"{categories[cat]}: {count}/{target_count}")
+    # print confusion matrix
+    print("Confusion Matrix:")
+    print(np.array([[TP, FP],
+              [FN, TN]]))
+    print("accuracy:", (TP + TN) / (TP + TN + FP + FN))
