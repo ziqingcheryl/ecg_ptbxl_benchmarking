@@ -7,7 +7,7 @@ from configs.wavelet_configs import *
 
 def main():
     
-    datafolder = '/home/ec2-user/ecg_ptbxl_benchmarking/data/ptbxl/'
+    datafolder = 'D:/Violet/ecg_ptbxl_benchmarking/data/ptbxl/'
     outputfolder = '../output/'
 
     models = [

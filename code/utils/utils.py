@@ -248,13 +248,25 @@ def compute_label_aggregations(df, folder, ctype):
         # Sort them to get a consistent index order
         sorted_scp_codes = sorted(list(all_scp_codes))
 
-        # Mapping from index to SCP code
-        index_to_scp = {i: code for i, code in enumerate(sorted_scp_codes)}
+        # # Mapping from index to SCP code
+        # index_to_scp = {i: code for i, code in enumerate(sorted_scp_codes)}
 
-        # Reverse mapping
-        scp_to_index = {code: i for i, code in enumerate(sorted_scp_codes)}
-        with open("scp_to_index.json", "w") as f:
-            json.dump(scp_to_index, f)
+        # # Reverse mapping
+        # scp_to_index = {code: i for i, code in enumerate(sorted_scp_codes)}
+        # with open("scp_to_index.json", "w") as f:
+        #     json.dump(scp_to_index, f)
+    
+    elif ctype == "binary_MI":
+        MI_related_scps = ["AMI","ALMI","ILMI","LMI","IMI","ASMI","IPMI","IPLMI","PMI"]
+        # For binary MI task, we only need the 'MI' and 'NORM' label
+        # First filter the scp_codes to only include MI-related codes and 'NORM'
+        df['scp_codes'] = df['scp_codes'].apply(lambda x: {k: v for k, v in x.items() if k in MI_related_scps or k == 'NORM'})
+        # Then create a binary label for MI presence
+        df['MI'] = df['scp_codes'].apply(lambda x: 1 if any(k in x for k in MI_related_scps) else 0) 
+    else:
+        raise ValueError("Unknown ctype: {}".format(ctype))
+
+
 
     return df
 
@@ -325,6 +337,10 @@ def select_data(XX,YY, ctype, min_samples, outputfolder):
         # import json
         # with open('label_mapping.json', 'w') as f:
         #     json.dump(label_mapping, f)
+    elif ctype == 'binary_MI':
+        mlb.fit(Y.MI.values)
+        y = mlb.transform(Y.MI.values)
+
     else:
         pass
 
