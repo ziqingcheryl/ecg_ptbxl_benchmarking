@@ -141,6 +141,8 @@ def losses_plot(learner, path, filename="losses", last:int=None):
     '''
     backend_old= matplotlib.get_backend()
     plt.switch_backend('agg')
+    plt.figure()      # start a new figure
+    plt.clf()         # ensure it's empty
     plt.ylabel("loss")
     plt.xlabel("Batches processed")
 
@@ -155,6 +157,7 @@ def losses_plot(learner, path, filename="losses", last:int=None):
 
     plt.savefig(str(path/(filename+'.png')))
     plt.switch_backend(backend_old)
+    plt.close()       # close so nothing accumulates
 
 class fastai_model(ClassificationModel):
     def __init__(self,name,n_classes,freq,outputfolder,input_shape,pretrained=False,input_size=2.5,input_channels=12,chunkify_train=False,chunkify_valid=True,bs=128,ps_head=0.5,lin_ftrs_head=[128],wd=1e-2,epochs=50,lr=1e-2,kernel_size=5,loss="binary_cross_entropy",pretrainedfolder=None,n_classes_pretrained=None,gradual_unfreezing=True,discriminative_lrs=True,epochs_finetuning=30,early_stopping=None,aggregate_fn="max",concat_train_val=False):
@@ -233,10 +236,15 @@ class fastai_model(ClassificationModel):
                 output_layer_new.apply(nll_regression_init)
                 learn.model.set_output_layer(output_layer_new)
             
-            lr_find_plot(learn, self.outputfolder)    
+            lr_find_plot(learn, self.outputfolder)   
+            learn.recorder.losses = []
+            learn.recorder.val_losses = []
+            learn.recorder.nb_batches = []
+
             learn.fit_one_cycle(self.epochs,self.lr)#slice(self.lr) if self.discriminative_lrs else self.lr)
             losses_plot(learn, self.outputfolder)
         else: #finetuning
+            # learn.recorder.reset()
             print("Finetuning...")
             #create learner
             learn = self._get_learner(X_train,y_train,X_val,y_val,self.n_classes_pretrained)
@@ -290,13 +298,8 @@ class fastai_model(ClassificationModel):
         y_dummy = [np.ones(self.num_classes,dtype=np.float32) for _ in range(len(X))]
         
         learn = self._get_learner(X,y_dummy,X,y_dummy)
-
-        if(self.pretrainedfolder is not None):
-            learn.path = self.pretrainedfolder
-            learn.load(self.pretrainedfolder.stem)
-            learn.path = self.outputfolder
+        learn.load(self.name)
         
-        # print(learn.model)
         preds,targs=learn.get_preds()
         preds=to_np(preds)
         
@@ -309,11 +312,7 @@ class fastai_model(ClassificationModel):
         y_dummy = [np.ones(self.num_classes,dtype=np.float32) for _ in range(len(X))]
         
         learn = self._get_learner(X,y_dummy,X,y_dummy)
-
-        if(self.pretrainedfolder is not None):
-            learn.path = self.pretrainedfolder
-            learn.load(self.pretrainedfolder.stem)
-            learn.path = self.outputfolder
+        learn.load(self.name)
         
         return learn.model.eval()
         

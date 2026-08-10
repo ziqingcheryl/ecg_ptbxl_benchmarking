@@ -1,84 +1,5 @@
-"""Load Data"""
-
 from utils import utils
-
-sampling_frequency=100
-datafolder='D:/Violet/ecg_ptbxl_benchmarking/data/ptbxl/'
-task='binary_MI'
-outputfolder='../output/'
-
-# Load PTB-XL data
-data, raw_labels = utils.load_dataset(datafolder, sampling_frequency)
-# Preprocess label data
-labels = utils.compute_label_aggregations(raw_labels, datafolder, task)
-# Select relevant data and convert to one-hot
-data, labels, Y, _ = utils.select_data(data, labels, task, min_samples=0, outputfolder=outputfolder)
-
-# 1-9 for training 
-X_train = data[labels.strat_fold < 10]
-y_train = Y[labels.strat_fold < 10]
-# 10 for validation
-X_val = data[labels.strat_fold == 10]
-y_val = Y[labels.strat_fold == 10]
-
-num_classes = 2         # <=== number of classes in the finetuning dataset
-input_shape = [1000,12] # <=== shape of samples, [None, 12] in case of different lengths
-
-print("Training and validation data shapes:"
-      f" {X_train.shape}, {y_train.shape}, {X_val.shape}, {y_val.shape}")
-
-"""Load Model"""
-from models.fastai_model import fastai_model
-
-experiment = 'exp0'
-modelname = 'fastai_xresnet1d101'
-pretrainedfolder = '/home/ec2-user/ecg_ptbxl_benchmarking/output/exp0/models/fastai_xresnet1d101/'
-mpath = '/home/ec2-user/ecg_ptbxl_benchmarking/output/'
-n_classes_pretrained = 71 # <=== because we load the model from exp0, this should be fixed because this depends the experiment
-
-model = fastai_model(
-    modelname, 
-    num_classes, 
-    sampling_frequency, 
-    mpath, 
-    input_shape=input_shape, 
-    pretrainedfolder=pretrainedfolder,
-    n_classes_pretrained=n_classes_pretrained, 
-    pretrained=True,
-    epochs_finetuning=2,
-)
-
-"""Standardize Data"""
-import pickle
-
-standard_scaler = pickle.load(open('/home/ec2-user/ecg_ptbxl_benchmarking/output/exp0/data/standard_scaler.pkl', "rb"))
-
-X_train = utils.apply_standardizer(X_train, standard_scaler)
-X_val = utils.apply_standardizer(X_val, standard_scaler)
-
-
-"""Finetune Model"""
-model.fit(X_train, y_train, X_val, y_val)
-
-
-"""Evaluate Model"""
-y_val_pred = model.predict(X_val)
-# Binary validation, compute accuracy, precision, recall, f1, confusion matrix
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
-accuracy = accuracy_score(y_val, y_val_pred)
-precision = precision_score(y_val, y_val_pred, average='binary')
-recall = recall_score(y_val, y_val_pred, average='binary')
-f1 = f1_score(y_val, y_val_pred, average='binary')
-conf_matrix = confusion_matrix(y_val, y_val_pred)
-print(f"Validation Accuracy: {accuracy:.4f}")
-print(f"Validation Precision: {precision:.4f}")
-print(f"Validation Recall: {recall:.4f}")
-print(f"Validation F1 Score: {f1:.4f}")
-print("Confusion Matrix:")
-print(conf_matrix)
-
-
-"""Grad_CAM_Visualization"""    
+import os
 import matplotlib.pyplot as plt
 import matplotlib.collections as mcoll
 import torch.nn as nn
@@ -90,8 +11,156 @@ from matplotlib import cm
 from matplotlib.colors import Normalize
 import pickle
 from models.fastai_model import fastai_model
+
+"""Load Data"""
+sampling_frequency=100
+datafolder='/home/ec2-user/ecg_ptbxl_benchmarking/data/ptbxl/'
+task='binary_MI'
+outputfolder='../output/'
+
+# Load PTB-XL data
+data, raw_labels = utils.load_dataset(datafolder, sampling_frequency)
+# Preprocess label data
+labels = utils.compute_label_aggregations(raw_labels, datafolder, task)
+# Select relevant data and convert to one-hot
+data, labels, Y, _ = utils.select_data(data, labels, task, min_samples=0, outputfolder=outputfolder)
+
+# 1-8 for training 
+X_train = data[labels.strat_fold < 9]
+y_train = Y[labels.strat_fold < 9]
+# 9 for validation
+X_val = data[labels.strat_fold == 9]
+y_val = Y[labels.strat_fold == 9]
+# 10 for test
+X_test = data[labels.strat_fold == 10]
+y_test = Y[labels.strat_fold == 10]
+
+
+num_classes = 2         # <=== number of classes in the finetuning dataset
+input_shape = [1000,12] # <=== shape of samples, [None, 12] in case of different lengths
+
+print("Training and validation data shapes:"
+      f" {X_train.shape}, {y_train.shape}, {X_val.shape}, {y_val.shape}")
+
+"""Load Model"""
+
+
+experiment = 'exp_bianray_finetune2'
+modelname = 'fastai_xresnet1d101'
+pretrainedfolder = '/home/ec2-user/ecg_ptbxl_benchmarking/output/exp0/models/fastai_xresnet1d101/'
+mpath = '/home/ec2-user/ecg_ptbxl_benchmarking/output/'+experiment+"/"
+os.makedirs(mpath, exist_ok=True)
+n_classes_pretrained = 71 # <=== because we load the model from exp0, this should be fixed because this depends the experiment
+
+model = fastai_model(
+    modelname, 
+    num_classes, 
+    sampling_frequency, 
+    mpath, 
+    input_shape=input_shape, 
+    pretrainedfolder=pretrainedfolder,
+    n_classes_pretrained=n_classes_pretrained, 
+    pretrained=True,
+    epochs_finetuning=5,
+)
+
+"""Standardize Data"""
+
+
+standard_scaler = pickle.load(open('/home/ec2-user/ecg_ptbxl_benchmarking/output/exp0/data/standard_scaler.pkl', "rb"))
+
+X_train = utils.apply_standardizer(X_train, standard_scaler)
+X_val = utils.apply_standardizer(X_val, standard_scaler)
+X_test = utils.apply_standardizer(X_test, standard_scaler)
+
+
+"""Finetune Model"""
+model.fit(X_train, y_train, X_val, y_val)
+
+
+"""Evaluate Model"""
+y_val_pred = model.predict(X_val)  # 形状为 (n_samples, 2)
+
+# 将预测概率转换为二进制标签（取概率最大的类别）
+y_val_pred_binary = np.argmax(y_val_pred, axis=1)  # 形状为 (n_samples,)
+
+# 将真实标签从多标签指示器格式转换为一维二进制标签
+# 假设y_val是形状为 (n_samples, 2) 的二进制矩阵
+y_val_binary = np.argmax(y_val, axis=1)  # 形状为 (n_samples,)
+
+# 确保y_val_binary和y_val_pred_binary都是一维数组
+print(f"y_val_binary shape: {y_val_binary.shape}, y_val_pred_binary shape: {y_val_pred_binary.shape}")
+
+# 计算评估指标
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+
+accuracy = accuracy_score(y_val_binary, y_val_pred_binary)
+precision = precision_score(y_val_binary, y_val_pred_binary, average='binary')
+recall = recall_score(y_val_binary, y_val_pred_binary, average='binary')
+f1 = f1_score(y_val_binary, y_val_pred_binary, average='binary')
+conf_matrix = confusion_matrix(y_val_binary, y_val_pred_binary)
+
+print(f"Validation Accuracy: {accuracy:.4f}")
+print(f"Validation Precision: {precision:.4f}")
+print(f"Validation Recall: {recall:.4f}")
+print(f"Validation F1 Score: {f1:.4f}")
+print("Confusion Matrix:")
+print(conf_matrix)
+
+
+
+print("Testing on test data ----------------------------------------------------------")
+y_test_pred = model.predict(X_test)  # 形状为 (n_samples, 2)
+# 将预测概率转换为二进制标签（取概率最大的类别）
+y_test_pred_binary = np.argmax(y_test_pred, axis=1)  # 形状为 (n_samples,)
+# 将真实标签从多标签指示器格式转换为一维二进制标签
+# 假设y_test是形状为 (n_samples, 2) 的二
+y_test_binary = np.argmax(y_test, axis=1)  # 形状为 (n_samples,)
+
+# save the y_test_pred and y_test to a local json file, GT: y_test_binary, Pred: y_test_pred_binary
 import json
-import os
+results = {"GT": y_test_binary.tolist(),
+"Pred": y_test_pred.tolist()}
+with open(os.path.join(mpath, "test_results_binary.json"), "w") as f:
+    json.dump(results, f)
+
+# print auc score
+from sklearn.metrics import roc_auc_score
+auc = roc_auc_score(y_test_binary, y_test_pred_binary)
+print(f"Test AUC-ROC: {auc:.4f}")
+
+# 确保y_test_binary和y_test_pred_binary都是一维数组
+print(f"y_test_binary shape: {y_test_binary.shape}, y_test_pred_binary shape: {y_test_pred_binary.shape}")
+# 计算评估指标
+accuracy = accuracy_score(y_test_binary, y_test_pred_binary)
+precision = precision_score(y_test_binary, y_test_pred_binary, average='binary')
+recall = recall_score(y_test_binary, y_test_pred_binary, average='binary')
+f1 = f1_score(y_test_binary, y_test_pred_binary, average='binary')
+conf_matrix = confusion_matrix(y_test_binary, y_test_pred_binary)
+print(f"Test Accuracy: {accuracy:.4f}")
+print(f"Test Precision: {precision:.4f}")
+print(f"Test Recall: {recall:.4f}")
+print(f"Test F1 Score: {f1:.4f}")
+print("Confusion Matrix:")
+print(conf_matrix)
+
+# Extract TN, FP, FN, TP
+tn, fp, fn, tp = conf_matrix.ravel()
+
+# Print counts
+print(f"False Positives: {fp}")
+print(f"False Negatives: {fn}")
+
+# Compute and print rates
+fpr = fp / (fp + tn) if (fp + tn) > 0 else 0
+fnr = fn / (fn + tp) if (fn + tp) > 0 else 0
+
+print(f"False Positive Rate (FPR): {fpr:.4f}")
+print(f"False Negative Rate (FNR): {fnr:.4f}")
+
+"""Grad_CAM_Visualization"""    
+
+
 
 def find_last_conv1d(model):
     for layer in reversed(list(model.modules())):
@@ -261,13 +330,15 @@ categories = {
 counters = {cat: 0 for cat in categories.keys()}
 target_count = 50
 # Create main output directory and subdirectories
-main_output_dir = os.path.join(outputfolder, "gradcam_categories_binary_results")
+main_output_dir = os.path.join("/home/ec2-user/ecg_ptbxl_benchmarking/output", "gradcam_categories_binary_results")
 os.makedirs(main_output_dir, exist_ok=True)
 for dir_name in categories.keys():
     os.makedirs(os.path.join(main_output_dir, dir_name), exist_ok=True)
 
+# Pred
+y_test_pred = model.predict(X_test)  # 形状为 (n_samples, 2)
 
-pytorch_model = model.get_model(X_val[:10])
+pytorch_model = model.get_model(X_test[:10])
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 pytorch_model.to(device)
@@ -282,7 +353,7 @@ gradcampp = GradCAMPlusPlus1D(pytorch_model, target_layer)
 
 # Processing parameters
 batch_size = 100  # Adjust based on memory constraints
-num_samples = len(X_val)
+num_samples = len(X_test)
 processed = 0
 
 # Tracking counters
@@ -295,13 +366,13 @@ TN = 0
 FP = 0
 FN = 0
 
-while not all(count >= target_count for count in counters.values()) and processed < num_samples:
+while processed < num_samples:
     # Calculate batch boundaries
     batch_start = processed
     batch_end = min(processed + batch_size, num_samples)
-    batch_X = X_val[batch_start:batch_end]
-    batch_y_true = y_val[batch_start:batch_end]
-    batch_y_pred = y_val_pred[batch_start:batch_end]
+    batch_X = X_test[batch_start:batch_end]
+    batch_y_true = y_test[batch_start:batch_end]
+    batch_y_pred = y_test_pred[batch_start:batch_end]
     
     # Process each sample in the batch
     for i in range(len(batch_X)):
@@ -314,39 +385,44 @@ while not all(count >= target_count for count in counters.values()) and processe
         y_true = batch_y_true[i]
         y_pred = batch_y_pred[i]
 
+        print(y_pred)
+
         # Get prediction confidence
         y_pred_softmax = softmax(y_pred)
+
+        print(f"Sample {sample_idx}: True label: {y_true}, Predicted label: {y_pred}, Softmax probabilities: {y_pred_softmax}")
         
-        mi_confidence = y_pred_softmax
-
-        # Convert to percentage
-        mi_confidence_percent = mi_confidence
-
-        norm_confidence = 1-mi_confidence
+        # 正确获取MI类的置信度（索引1）
+        mi_confidence = y_pred_softmax[1]  # 关键修正：MI类在索引1
+        norm_confidence = y_pred_softmax[0]  # 正常类在索引0
 
         print(f"MI-related confidence (after softmax): {mi_confidence*100:.2f}%")
+        print(f"Normal confidence (after softmax): {norm_confidence*100:.2f}%")
 
-        is_mi = y_pred_softmax>0.5
+        # 判断是否预测为MI类（基于正确的索引1）
+        is_mi = mi_confidence > 0.5  # 现在正确：MI类概率>0.5则预测为MI
 
-        is_correct = y_true == y_pred
+        # 判断预测是否正确（y_true[1]为1表示真实是MI）
+        is_correct = (y_true[1] == 1) == is_mi  # 关键修正：明确真实MI的判断
 
+        # 后续的TP/FN/TN/FP逻辑也需要对应调整（基于1是MI索引）
         if is_mi:
             if is_correct:
-                category = "mi_correct"
+                category = "mi_correct"  # 预测MI，真实也是MI → TP
                 TP += 1
             else:
-                category = "mi_incorrect"
-                FN += 1
+                category = "mi_incorrect"  # 预测MI，真实不是 → FP（原代码写反了）
+                FP += 1  # 修正：原代码此处是FN，错误
         else:
             if is_correct:
-                category = "norm_correct"
+                category = "norm_correct"  # 预测正常，真实正常 → TN
                 TN += 1
             else:
-                category = "norm_incorrect"
-                FP += 1
+                category = "norm_incorrect"  # 预测正常，真实是MI → FN（原代码写反了）
+                FN += 1  # 修正：原代码此处是FP，错误
         # Skip if we already have enough in this category
-            if counters[category] >= target_count:
-                continue
+        if counters[category] >= target_count:
+            continue
         # Generate Grad-CAM++ heatmap
         try:
             # Preprocess sample
@@ -361,6 +437,7 @@ while not all(count >= target_count for count in counters.values()) and processe
             
             # Save plots
             output_dir = os.path.join(main_output_dir, category)
+            os.makedirs(output_dir, exist_ok=True)
             
             # Save ECG only
             plot_only_signal(
@@ -379,9 +456,9 @@ while not all(count >= target_count for count in counters.values()) and processe
             # Increment counter
             counters[category] += 1
             # Print processing confidence for MI and NORM
-            print(f"Processed sample {sample_idx}: {category} - MI confidence: {mi_confidence_percent:.2f}%")
+            print(f"Processed sample {sample_idx}: {category} - MI confidence: {mi_confidence:.2f}%")
             print(f"Processed sample {sample_idx}: {category} - NORM confidence: {norm_confidence:.2f}%")
-            print(f"Saved {category} #{counters[category]}/{target_count} (Sample {sample_idx})")
+            print(f"Saved {category} #{counters[category]}/{target_count} (Sample {sample_idx}) to {output_dir}")
             
         except Exception as e:
             print(f"Error processing sample {sample_idx}: {str(e)}")
@@ -390,4 +467,15 @@ while not all(count >= target_count for count in counters.values()) and processe
         # Update processed count
         processed = batch_end
         print(f"Processed {processed}/{num_samples} samples. Current counts: {counters}")
+        print(f"Current TP: {TP}, TN: {TN}, FP: {FP}, FN: {FN}")
+
+    # Update processed count
+    print(f"Current TP: {TP}, TN: {TN}, FP: {FP}, FN: {FN}")
+    accuracy = (TP + TN) / (TP + TN + FP + FN) if (TP + TN + FP + FN) > 0 else 0
+    print("confusion matrix:",  
+            f"TP: {TP}, TN: {TN}, FP: {FP}, FN: {FN}, "
+            f"Current accuracy: {accuracy:.4f}"
+            f"Precision: {TP/(TP+FP) if (TP+FP)>0 else 0:.4f}, "
+            f"Recall: {TP/(TP+FN) if (TP+FN)>0 else 0:.4f}, "
+            f"F1 Score: {2*TP/(2*TP+FP+FN) if (2*TP+FP+FN)>0 else 0:.4f}")
         

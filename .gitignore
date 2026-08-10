@@ -16,3 +16,8 @@ __pycache__
 
 data/
 output/
+
+*.zip
+*.log
+*.pth
+*.pkl

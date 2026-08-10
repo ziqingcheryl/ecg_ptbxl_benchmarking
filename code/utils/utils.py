@@ -338,9 +338,16 @@ def select_data(XX,YY, ctype, min_samples, outputfolder):
         # with open('label_mapping.json', 'w') as f:
         #     json.dump(label_mapping, f)
     elif ctype == 'binary_MI':
-        mlb.fit(Y.MI.values)
-        y = mlb.transform(Y.MI.values)
-
+        # 将整数标签转换为单元素列表（符合MultiLabelBinarizer要求）
+        YY['MI_list'] = YY.MI.apply(lambda x: [x])
+        
+        # 这里假设binary_MI场景下不需要过滤样本，若需要可添加类似mask逻辑
+        X = XX  # 保持与Y同步的特征数据
+        Y = YY  # 当前标签数据
+        
+        # 多标签编码
+        mlb.fit(Y.MI_list.values)
+        y = mlb.transform(Y.MI_list.values)
     else:
         pass
 
